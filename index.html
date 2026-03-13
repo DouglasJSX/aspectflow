@@ -116,6 +116,7 @@
         opacity: 0.9;
         transform: translate(-50%, -50%);
         will-change: transform;
+        transition: opacity 0.16s ease;
       }
 
       @media (hover: none), (pointer: coarse) {
@@ -437,13 +438,12 @@
       }
 
       .ratio-sub {
-        font-size: 10px;
-        color: var(--mid);
-        margin-top: 4px;
+        display: none;
       }
 
       /* ── Preview ── */
       .preview {
+        margin-top: 8px;
         width: 100%;
         display: flex;
         align-items: center;
@@ -478,11 +478,7 @@
 
       /* ── Solve hint ── */
       .solve-hint {
-        font-size: 12px;
-        color: var(--mid);
-        text-align: center;
-        min-height: 14px;
-        flex-shrink: 0;
+        display: none;
       }
 
       /* ── Responsive ── */
@@ -627,6 +623,7 @@
               <div class="field">
                 <div class="ratio-box" id="rBox">
                   <div class="ratio-val empty" id="rVal">—</div>
+                  <div class="ratio-sub" id="rSub"></div>
                 </div>
                 <span>Aspect Ratio</span>
               </div>
@@ -733,6 +730,23 @@
         let ty = y;
         let raf = null;
 
+        function showCursor() {
+          bgDistortionCursor.style.opacity = '0.9';
+        }
+
+        function hideCursor() {
+          bgDistortionCursor.style.opacity = '0';
+        }
+
+        function isInsideViewport(clientX, clientY) {
+          return (
+            clientX >= 0 &&
+            clientY >= 0 &&
+            clientX <= window.innerWidth &&
+            clientY <= window.innerHeight
+          );
+        }
+
         function frame() {
           x += (tx - x) * 0.16;
           y += (ty - y) * 0.16;
@@ -759,6 +773,12 @@
         }
 
         window.addEventListener('pointermove', function (e) {
+          if (!isInsideViewport(e.clientX, e.clientY)) {
+            hideCursor();
+            return;
+          }
+
+          showCursor();
           const p = pointerToBgCoords(e.clientX, e.clientY);
           tx = p.x;
           ty = p.y;
@@ -766,11 +786,20 @@
         });
 
         window.addEventListener('pointerleave', function () {
+          hideCursor();
           const rect = bgBase.getBoundingClientRect();
           tx = rect.width / 2;
           ty = rect.height / 2;
           queueFrame();
         });
+
+        window.addEventListener('mouseout', function (e) {
+          if (!e.relatedTarget) {
+            hideCursor();
+          }
+        });
+
+        window.addEventListener('blur', hideCursor);
 
         window.addEventListener('resize', function () {
           const rect = bgBase.getBoundingClientRect();
@@ -781,6 +810,7 @@
           queueFrame();
         });
 
+        hideCursor();
         queueFrame();
       }
 
