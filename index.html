@@ -376,7 +376,6 @@
       /* auto-computed value */
       input.f-auto {
         color: var(--mid) !important;
-        pointer-events: none;
         box-shadow: none !important;
       }
 
@@ -975,11 +974,14 @@
             const h = Math.round((w * rh) / rw);
             sh.value = h;
             sh.classList.add('f-auto');
+            sh.readOnly = true;
+            sw.readOnly = false;
             hint.textContent = `${w} × ${h} px`;
             updatePreview('pRect2', w, h);
           } else {
             sh.value = '';
             sh.classList.remove('f-auto');
+            sh.readOnly = false;
             hint.textContent = '';
             updatePreview('pRect2', 0, 0);
           }
@@ -989,16 +991,75 @@
             const w = Math.round((h * rw) / rh);
             sw.value = w;
             sw.classList.add('f-auto');
+            sw.readOnly = true;
+            sh.readOnly = false;
             hint.textContent = `${w} × ${h} px`;
             updatePreview('pRect2', w, h);
           } else {
             sw.value = '';
             sw.classList.remove('f-auto');
+            sw.readOnly = false;
             hint.textContent = '';
             updatePreview('pRect2', 0, 0);
           }
+        } else {
+          sw.readOnly = false;
+          sh.readOnly = false;
         }
       }
+
+      function initDigitsOnlyInputs() {
+        const numberInputs = document.querySelectorAll("input[type='number']");
+        const allowedKeys = new Set([
+          'Backspace',
+          'Delete',
+          'Tab',
+          'ArrowLeft',
+          'ArrowRight',
+          'Home',
+          'End',
+          'Escape',
+          'Enter',
+        ]);
+
+        numberInputs.forEach(function (input) {
+          input.addEventListener('keydown', function (e) {
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+            if (allowedKeys.has(e.key)) return;
+            if (/^[0-9]$/.test(e.key)) return;
+            e.preventDefault();
+          });
+
+          input.addEventListener('input', function () {
+            const onlyDigits = this.value.replace(/\D+/g, '');
+            if (this.value !== onlyDigits) {
+              this.value = onlyDigits;
+            }
+          });
+
+          input.addEventListener('paste', function (e) {
+            e.preventDefault();
+            const text = (e.clipboardData || window.clipboardData).getData('text');
+            const onlyDigits = text.replace(/\D+/g, '');
+            if (!onlyDigits) return;
+
+            if (typeof this.setRangeText === 'function') {
+              this.setRangeText(
+                onlyDigits,
+                this.selectionStart || 0,
+                this.selectionEnd || 0,
+                'end',
+              );
+            } else {
+              this.value = onlyDigits;
+            }
+
+            this.dispatchEvent(new Event('input', { bubbles: true }));
+          });
+        });
+      }
+
+      initDigitsOnlyInputs();
 
       document.getElementById('dW').addEventListener('input', updateDetect);
       document.getElementById('dH').addEventListener('input', updateDetect);
@@ -1007,14 +1068,20 @@
 
       document.getElementById('sW').addEventListener('input', function () {
         lastEdited = 'w';
+        this.readOnly = false;
         this.classList.remove('f-auto');
-        document.getElementById('sH').classList.remove('f-auto');
+        const sHInput = document.getElementById('sH');
+        sHInput.classList.remove('f-auto');
+        sHInput.readOnly = false;
         solveP2();
       });
       document.getElementById('sH').addEventListener('input', function () {
         lastEdited = 'h';
+        this.readOnly = false;
         this.classList.remove('f-auto');
-        document.getElementById('sW').classList.remove('f-auto');
+        const sWInput = document.getElementById('sW');
+        sWInput.classList.remove('f-auto');
+        sWInput.readOnly = false;
         solveP2();
       });
 
@@ -1024,6 +1091,9 @@
         );
         ['sW', 'sH'].forEach((id) =>
           document.getElementById(id).classList.remove('f-auto'),
+        );
+        ['sW', 'sH'].forEach((id) =>
+          (document.getElementById(id).readOnly = false),
         );
         const rv = document.getElementById('rVal');
         rv.textContent = '—';
