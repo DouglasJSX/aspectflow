@@ -1,0 +1,1009 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Aspect ratio calculator to detect proportions and convert width/height with real-time preview."
+    />
+    <meta
+      name="keywords"
+      content="aspect ratio, calculator, proportion, resolution, width, height"
+    />
+    <meta name="author" content="AspectFlow" />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#0c0c10" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:title" content="AspectFlow" />
+    <meta
+      property="og:description"
+      content="Detect and calculate aspect ratio easily with instant preview."
+    />
+    <meta property="og:image" content="./assets/og.png" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="AspectFlow" />
+    <meta
+      name="twitter:description"
+      content="Detect and calculate aspect ratio easily with instant preview."
+    />
+    <meta name="twitter:image" content="./assets/og.png" />
+    <link rel="icon" type="image/png" href="./assets/favicon.png" />
+    <title>AspectFlow</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Figtree&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        --bg: #0c0c10;
+        --panel: rgba(255, 255, 255, 0.038);
+        --bd-hi: rgba(255, 255, 255, 0.14);
+        --input-bg: rgba(0, 0, 0, 0.5);
+        --hi: #e8e8ee;
+        --mid: #eeeeee;
+        --accent: #9b91c8; /* muted lavender */
+        --accent2: #7aadbe; /* muted steel-blue */
+        --result-bg: rgba(155, 145, 200, 0.07);
+        --result-bd: rgba(155, 145, 200, 0.18);
+        --auto-bg: rgba(122, 173, 190, 0.07);
+        --auto-bd: rgba(122, 173, 190, 0.2);
+        --sel-bg: color-mix(in srgb, var(--accent2) 72%, black 8%);
+        --sel-text: #f6fbff;
+        --sel-blend: difference;
+        --r: 32px;
+        --input-h: 64px; /* unified input height */
+        --ease: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      html,
+      body {
+        height: 100%;
+        width: 100%;
+        font-family: 'Figtree', sans-serif;
+        color: var(--hi);
+        overflow: hidden;
+        background: var(--bg);
+      }
+
+      body {
+        isolation: isolate;
+      }
+
+      .bg-base {
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        top: 0;
+      }
+
+      .bg-base {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        overflow: hidden;
+      }
+
+      .bg-base video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .bg-distortion-cursor {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 170px;
+        height: 170px;
+        border-radius: 50%;
+        pointer-events: none;
+        backdrop-filter: blur(2px) saturate(125%);
+        filter: url(#cursor-distortion);
+        box-shadow:
+          inset 0 0 18px rgba(255, 255, 255, 0.08),
+          0 0 24px rgba(0, 0, 0, 0.12);
+        opacity: 0.9;
+        transform: translate(-50%, -50%);
+        will-change: transform;
+      }
+
+      @media (hover: none), (pointer: coarse) {
+        .bg-distortion-cursor {
+          display: none;
+        }
+      }
+
+      /* ── Page ── */
+      .page {
+        position: relative;
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 32px 24px;
+      }
+      @media (max-width: 1023px) {
+        .page {
+          padding: 64px 24px;
+        }
+      }
+
+      .wrap {
+        width: 100%;
+        max-width: 1280px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+      }
+
+      /* ── Header ── */
+      .page-header {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 64px;
+      }
+      @media (max-width: 1023px) {
+        .page-header {
+          margin-bottom: 48px;
+        }
+      }
+      .brand-logo {
+        width: min(100%, 500px);
+        mix-blend-mode: exclusion;
+        height: auto;
+        display: block;
+      }
+      .btn-clear {
+        width: 100%;
+        padding: 10px 32px;
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(4px);
+        border: 0px !important;
+        border-radius: 99px;
+        color: var(--mid);
+        font-size: 14px;
+        cursor: pointer;
+        transition: all var(--ease);
+      }
+      .btn-clear:hover {
+        background: rgba(0, 0, 0, 0.7);
+      }
+
+      /* ── Panels ── */
+      .panels {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        align-items: stretch; /* stretch = same height */
+      }
+
+      .glass-card {
+        --bg-color: rgba(0, 0, 0, 0.25);
+        --highlight: rgba(255, 255, 255, 0.15);
+        --text: #eeeeee;
+
+        position: relative;
+        width: 100%;
+        height: 100%;
+        border-radius: 20px;
+        overflow: hidden;
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
+      }
+
+      .glass-filter,
+      .glass-overlay,
+      .glass-specular {
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+      }
+
+      .glass-filter {
+        z-index: 1;
+        backdrop-filter: blur(4px);
+        filter: url(#glass-distortion) saturate(120%) brightness(1.15);
+      }
+
+      .glass-distortion-overlay {
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(
+            circle at 20% 30%,
+            rgba(255, 255, 255, 0.05) 0%,
+            transparent 80%
+          ),
+          radial-gradient(
+            circle at 80% 70%,
+            rgba(255, 255, 255, 0.05) 0%,
+            transparent 80%
+          );
+        background-size: 300% 300%;
+        animation: floatDistort 10s infinite ease-in-out;
+        mix-blend-mode: overlay;
+        z-index: 2;
+        pointer-events: none;
+      }
+
+      @keyframes floatDistort {
+        0% {
+          background-position: 0% 0%;
+        }
+        50% {
+          background-position: 100% 100%;
+        }
+        100% {
+          background-position: 0% 0%;
+        }
+      }
+
+      .glass-overlay {
+        z-index: 2;
+        background: var(--bg-color);
+      }
+
+      .glass-specular {
+        z-index: 3;
+        box-shadow: inset 1px 1px 1px var(--highlight);
+      }
+
+      .glass-content {
+        position: relative;
+        z-index: 4;
+        padding: 24px;
+        color: var(--text);
+        text-align: start;
+        display: flex;
+        flex-direction: column;
+        justify-content: start;
+        align-items: start;
+        height: 100%;
+      }
+
+      .glass-content h3 {
+        margin: 0 0 12px 0;
+        font-size: 24px;
+        line-height: 28px;
+        font-weight: 600;
+      }
+
+      @media (max-width: 1023px) {
+        .glass-content h3 {
+          font-size: 18px;
+          line-height: 22px;
+        }
+      }
+
+      .glass-content span {
+        margin: 0;
+        line-height: 18px;
+        font-size: 14px;
+        opacity: 0.8;
+      }
+
+      @keyframes fadeUp {
+        from {
+          opacity: 0;
+          transform: translateY(16px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
+      /* ── Panel title ── */
+      .panel-title {
+        font-size: 12px;
+        font-weight: 400;
+        text-transform: uppercase;
+        color: var(--mid);
+      }
+
+      /* ── Input row ── */
+      .input-row {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr 24px 1fr;
+        align-items: end;
+        gap: 6px;
+        margin-bottom: 8px;
+      }
+
+      .input-row-2 {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr 24px 1fr;
+        align-items: start;
+        gap: 6px;
+      }
+
+      .field {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      /* ── Unified input style ── */
+      input[type='number'] {
+        width: 100%;
+        height: var(--input-h);
+        background: var(--input-bg);
+        border: none;
+        border-radius: 8px;
+        color: var(--mid);
+        font-size: 16px;
+        line-height: 20px;
+        text-align: center;
+        outline: none;
+        box-shadow: none;
+        transition: background var(--ease);
+        -moz-appearance: textfield;
+      }
+      input[type='number']::-webkit-outer-spin-button,
+      input[type='number']::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+      }
+      input[type='number']::placeholder {
+        color: rgb(255, 255, 255, 0.3);
+      }
+      input[type='number']:hover {
+        background: rgba(0, 0, 0, 0.6);
+      }
+      input[type='number']:focus {
+        background: rgba(0, 0, 0, 0.6);
+        box-shadow: none;
+      }
+
+      /* auto-computed value */
+      input.f-auto {
+        color: var(--mid) !important;
+        pointer-events: none;
+        box-shadow: none !important;
+      }
+
+      /* separator */
+      .sep {
+        font-size: 18px;
+        font-weight: 500;
+        color: var(--mid);
+        text-align: center;
+        user-select: none;
+        height: var(--input-h);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      /* ── Ratio result box ── */
+      .ratio-box {
+        position: relative;
+        overflow: hidden;
+        background: var(--input-bg);
+        border: none;
+        border-radius: 12px;
+        padding: 14px 16px;
+        text-align: center;
+      }
+      .ratio-box::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 50%;
+        height: 100%;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(255, 255, 255, 0.03),
+          transparent
+        );
+        transition: left 0.5s ease;
+      }
+      .ratio-box.shine::after {
+        left: 150%;
+      }
+
+      .ratio-val {
+        font-size: 16px;
+        line-height: 20px;
+        text-align: center;
+        color: var(--mid);
+        min-height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: color 0.2s;
+      }
+      .ratio-val.empty {
+        color: rgb(255, 255, 255, 0.3);
+      }
+
+      .ratio-sub {
+        font-size: 10px;
+        color: var(--mid);
+        margin-top: 4px;
+      }
+
+      /* ── Preview ── */
+      .preview {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 1; /* fills remaining vertical space */
+        min-height: 72px;
+        background: var(--input-bg);
+        border: none;
+        border-radius: 8px;
+      }
+      .preview-rect {
+        /* background: #312c8595; */
+        background: var(--accent2);
+        opacity: 1;
+        border-radius: 6px;
+        transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        max-width: calc(100% - 28px);
+        max-height: 52px;
+      }
+
+      .preview-rect.is-empty {
+        opacity: 0.4;
+      }
+
+      .align-bottom {
+        height: 100%;
+        width: 100%;
+        display: flex;
+        align-items: flex-end;
+        justify-content: end;
+      }
+
+      /* ── Solve hint ── */
+      .solve-hint {
+        font-size: 12px;
+        color: var(--mid);
+        text-align: center;
+        min-height: 14px;
+        flex-shrink: 0;
+      }
+
+      /* ── Responsive ── */
+      @media (max-width: 640px) {
+        html,
+        body {
+          overflow: auto;
+        }
+        .panels {
+          grid-template-columns: 1fr;
+        }
+        .panel {
+          flex: none;
+        }
+      }
+
+      .rotated-video {
+        rotate: 180deg;
+      }
+
+      .copyright {
+        position: absolute;
+        bottom: 0;
+        padding-bottom: 24px;
+        width: 100%;
+        height: fit-content;
+        mix-blend-mode: difference;
+        text-align: center;
+        font-size: 14px;
+        line-height: 18px;
+        color: var(--mid);
+      }
+
+      ::selection {
+        background: var(--sel-bg);
+        color: var(--sel-text);
+        mix-blend-mode: var(--sel-blend);
+        text-shadow:
+          0 0 0.01px currentColor,
+          0 0 12px color-mix(in srgb, var(--accent2) 50%, transparent);
+      }
+
+      ::-moz-selection {
+        background: var(--sel-bg);
+        color: var(--sel-text);
+        mix-blend-mode: var(--sel-blend);
+        text-shadow:
+          0 0 0.01px currentColor,
+          0 0 12px color-mix(in srgb, var(--accent2) 50%, transparent);
+      }
+    </style>
+  </head>
+  <body>
+    <!-- SVG filter for glass distortion -->
+    <svg style="display: none">
+      <filter id="glass-distortion">
+        <feTurbulence
+          type="turbulence"
+          baseFrequency="0.0008"
+          numOctaves="2"
+          result="noise"
+        />
+        <feDisplacementMap in="SourceGraphic" in2="noise" scale="100" />
+      </filter>
+
+      <filter id="cursor-distortion">
+        <feTurbulence
+          type="fractalNoise"
+          baseFrequency="0.018"
+          numOctaves="1"
+          seed="7"
+          result="noise"
+        />
+        <feDisplacementMap in="SourceGraphic" in2="noise" scale="16" />
+      </filter>
+    </svg>
+
+    <script>
+      function getRandomInt(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+      }
+
+      function getRandomVideoPath() {
+        const randomVideo = getRandomInt(1, 3);
+
+        if (randomVideo === 1) {
+          return './assets/video_nature.mp4';
+        }
+
+        if (randomVideo === 2) {
+          return './assets/video_texture.mp4';
+        }
+
+        return './assets/video.mp4';
+      }
+    </script>
+
+    <div class="bg-base" aria-hidden="true">
+      <video
+        autoplay
+        muted
+        loop
+        playsinline
+        preload="auto"
+      >
+        <source id="bgVideoSource" src="./assets/video_texture.mp4" type="video/mp4" />
+      </video>
+      <div class="bg-distortion-cursor" aria-hidden="true"></div>
+    </div>
+
+    <div class="page">
+      <div class="wrap">
+        <div class="page-header">
+          <img
+            class="brand-logo"
+            src="./assets/aspectflow-horizontal.svg"
+            alt="AspectFlow"
+          />
+        </div>
+
+        <div class="panels">
+          <!-- Panel 1 -->
+          <div class="glass-card">
+            <div class="glass-filter"></div>
+            <div class="glass-overlay"></div>
+            <div class="glass-specular"></div>
+            <div class="glass-content">
+              <h3>Detect Ratio</h3>
+
+              <div class="input-row">
+                <div class="field">
+                  <span>Width</span>
+                  <input id="dW" type="number" min="1" placeholder="1920" />
+                </div>
+                <div class="sep">×</div>
+                <div class="field">
+                  <span>Height</span>
+                  <input id="dH" type="number" min="1" placeholder="1080" />
+                </div>
+              </div>
+
+              <div class="field">
+                <div class="ratio-box" id="rBox">
+                  <div class="ratio-val empty" id="rVal">—</div>
+                </div>
+                <span>Aspect Ratio</span>
+              </div>
+
+              <div class="align-bottom">
+                <div class="preview">
+                  <div
+                    class="preview-rect is-empty"
+                    id="pRect1"
+                    style="width: 66px; height: 37px"
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Panel 2 -->
+          <div class="glass-card">
+            <div class="glass-filter"></div>
+            <div class="glass-overlay"></div>
+            <div class="glass-specular"></div>
+            <div class="glass-content">
+              <h3>Calculate Ratio</h3>
+               <div class="input-row">
+                <div class="field">
+                  <span>Ratio Width</span>
+                  <input id="rW" type="number" min="1" placeholder="16" />
+                </div>
+                <div class="sep">:</div>
+                <div class="field">
+                  <span>Ratio Height</span>
+                  <input id="rH" type="number" min="1" placeholder="9" />
+                </div>
+              </div>
+
+              <div class="input-row-2">
+                <div class="field">
+                  <input id="sW" type="number" min="1" placeholder="—" />
+                  <span>Width</span>
+                </div>
+                <div class="sep">×</div>
+                <div class="field">
+                  <input id="sH" type="number" min="1" placeholder="—" />
+                  <span>Height</span>
+                </div>
+              </div>
+
+              <div class="solve-hint" id="solveHint"></div>
+
+              <div class="preview">
+                <div
+                  class="preview-rect is-empty"
+                  id="pRect2"
+                  style="width: 66px; height: 37px"
+                ></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <button class="btn-clear" onclick="clearAll()">Clear</button>
+    </div>
+    <p class="copyright">© AspectFlow - <span id="currentYear"></span></p>
+
+    <script>
+      /* ── Glass video alignment & sync ── */
+      const bgBase = document.querySelector('.bg-base');
+      const bgVideo = document.querySelector('.bg-base video');
+      const bgVideoSource = document.getElementById('bgVideoSource');
+      const bgDistortionCursor = document.querySelector('.bg-distortion-cursor');
+      const glassVideos = document.querySelectorAll('.glass-filter video');
+
+      if (bgVideo && bgVideoSource) {
+        const selectedVideoPath = getRandomVideoPath();
+        bgVideoSource.src = selectedVideoPath;
+        bgVideo.classList.toggle(
+          'rotated-video',
+          selectedVideoPath.endsWith('/video_nature.mp4'),
+        );
+        bgVideo.load();
+        bgVideo.play().catch(function () {});
+      }
+
+      const yearEl = document.getElementById('currentYear');
+      if (yearEl) {
+        yearEl.textContent = String(new Date().getFullYear());
+      }
+
+      function initBackgroundMouseDistortion() {
+        if (!bgBase || !bgDistortionCursor || window.matchMedia('(hover: none), (pointer: coarse)').matches) {
+          return;
+        }
+
+        function pointerToBgCoords(clientX, clientY) {
+          const rect = bgBase.getBoundingClientRect();
+          return {
+            x: clientX - rect.left,
+            y: clientY - rect.top,
+          };
+        }
+
+        let x = window.innerWidth / 2;
+        let y = window.innerHeight / 2;
+        let tx = x;
+        let ty = y;
+        let raf = null;
+
+        function frame() {
+          x += (tx - x) * 0.16;
+          y += (ty - y) * 0.16;
+
+          const dx = tx - x;
+          const dy = ty - y;
+          const speed = Math.min(Math.hypot(dx, dy), 80);
+          const scale = 1 + speed / 240;
+
+          bgDistortionCursor.style.transform =
+            'translate(' + x + 'px, ' + y + 'px) translate(-50%, -50%) scale(' + scale.toFixed(3) + ')';
+
+          if (Math.abs(dx) + Math.abs(dy) > 0.15) {
+            raf = requestAnimationFrame(frame);
+          } else {
+            raf = null;
+          }
+        }
+
+        function queueFrame() {
+          if (raf === null) {
+            raf = requestAnimationFrame(frame);
+          }
+        }
+
+        window.addEventListener('pointermove', function (e) {
+          const p = pointerToBgCoords(e.clientX, e.clientY);
+          tx = p.x;
+          ty = p.y;
+          queueFrame();
+        });
+
+        window.addEventListener('pointerleave', function () {
+          const rect = bgBase.getBoundingClientRect();
+          tx = rect.width / 2;
+          ty = rect.height / 2;
+          queueFrame();
+        });
+
+        window.addEventListener('resize', function () {
+          const rect = bgBase.getBoundingClientRect();
+          tx = Math.min(tx, rect.width);
+          ty = Math.min(ty, rect.height);
+          x = Math.min(x, rect.width);
+          y = Math.min(y, rect.height);
+          queueFrame();
+        });
+
+        queueFrame();
+      }
+
+      function alignGlassVideos() {
+        glassVideos.forEach(function (v) {
+          const rect = v.parentElement.getBoundingClientRect();
+          v.style.top = -rect.top + 'px';
+          v.style.left = -rect.left + 'px';
+        });
+      }
+
+      function syncGlassVideos() {
+        if (!bgVideo || bgVideo.readyState < 2) return;
+        glassVideos.forEach(function (v) {
+          if (Math.abs(v.currentTime - bgVideo.currentTime) > 0.15) {
+            v.currentTime = bgVideo.currentTime;
+          }
+          if (v.paused) v.play().catch(function () {});
+        });
+      }
+
+      alignGlassVideos();
+      window.addEventListener('resize', alignGlassVideos);
+      bgVideo && bgVideo.addEventListener('play', syncGlassVideos);
+      glassVideos.forEach(function (v) {
+        v.addEventListener('loadeddata', syncGlassVideos);
+      });
+      setInterval(syncGlassVideos, 1000);
+      initBackgroundMouseDistortion();
+
+      /* ── Helpers ── */
+      function gcd(a, b) {
+        a = Math.round(a);
+        b = Math.round(b);
+        return b === 0 ? a : gcd(b, a % b);
+      }
+
+      // Finds the closest small integer ratio to the current w/h value.
+      function nearestIntegerRatio(w, h, maxSide = 64) {
+        const target = w / h;
+        let best = { w: w, h: h, error: Number.POSITIVE_INFINITY };
+
+        for (let rh = 1; rh <= maxSide; rh++) {
+          const base = Math.round(target * rh);
+          for (let rw = base - 1; rw <= base + 1; rw++) {
+            if (rw < 1) continue;
+            const error = Math.abs(rw / rh - target);
+            if (error < best.error) {
+              best = { w: rw, h: rh, error: error };
+            }
+          }
+        }
+
+        return best;
+      }
+
+      function detectDisplayRatio(w, h) {
+        const iw = Math.round(w);
+        const ih = Math.round(h);
+        const d = gcd(iw, ih);
+        const exactW = iw / d;
+        const exactH = ih / d;
+
+        // If exact simplification already exists, use it directly.
+        if (d > 1) {
+          return {
+            label: `${exactW}:${exactH}`,
+            isApprox: false,
+            exactLabel: `${exactW}:${exactH}`,
+          };
+        }
+
+        const nearest = nearestIntegerRatio(iw, ih);
+        const relError = Math.abs(nearest.w / nearest.h - iw / ih) / (iw / ih);
+        const snapThreshold = 0.003; // 0.3%
+
+        if (relError <= snapThreshold) {
+          return {
+            label: `${nearest.w}:${nearest.h}`,
+            isApprox: true,
+            exactLabel: `${exactW}:${exactH}`,
+          };
+        }
+
+        return {
+          label: `${exactW}:${exactH}`,
+          isApprox: false,
+          exactLabel: `${exactW}:${exactH}`,
+        };
+      }
+
+      function val(id) {
+        return parseFloat(document.getElementById(id).value) || 0;
+      }
+
+      function updatePreview(id, w, h) {
+        const el = document.getElementById(id);
+        if (w > 0 && h > 0) {
+          el.classList.remove('is-empty');
+          const mW = 116,
+            mH = 52;
+          let pw, ph;
+          if (w / h >= mW / mH) {
+            pw = mW;
+            ph = Math.round((mW * h) / w);
+          } else {
+            ph = mH;
+            pw = Math.round((mH * w) / h);
+          }
+          el.style.width = pw + 'px';
+          el.style.height = ph + 'px';
+        } else {
+          el.classList.add('is-empty');
+          el.style.width = '66px';
+          el.style.height = '37px';
+        }
+      }
+
+      /* ── Panel 1 ── */
+      function updateDetect() {
+        const w = val('dW'),
+          h = val('dH');
+        const rv = document.getElementById('rVal');
+        const rs = document.getElementById('rSub');
+        const rb = document.getElementById('rBox');
+        if (w > 0 && h > 0) {
+          const ratio = detectDisplayRatio(w, h);
+          rv.textContent = ratio.label;
+          rv.classList.remove('empty');
+          rs.textContent = ratio.isApprox
+            ? `${(w / h).toFixed(4)} (approx. | exact ${ratio.exactLabel})`
+            : `${(w / h).toFixed(4)}`;
+          rb.classList.remove('shine');
+          void rb.offsetWidth;
+          rb.classList.add('shine');
+        } else {
+          rv.textContent = '—';
+          rv.classList.add('empty');
+          rs.textContent = '';
+        }
+        updatePreview('pRect1', w, h);
+      }
+
+      /* ── Panel 2 ── */
+      let lastEdited = null;
+
+      function solveP2() {
+        const rw = val('rW'),
+          rh = val('rH');
+        const hint = document.getElementById('solveHint');
+        const sw = document.getElementById('sW'),
+          sh = document.getElementById('sH');
+        if (!rw || !rh) {
+          hint.textContent = '';
+          updatePreview('pRect2', 0, 0);
+          return;
+        }
+
+        if (lastEdited === 'w') {
+          const w = val('sW');
+          if (w > 0) {
+            const h = Math.round((w * rh) / rw);
+            sh.value = h;
+            sh.classList.add('f-auto');
+            hint.textContent = `${w} × ${h} px`;
+            updatePreview('pRect2', w, h);
+          } else {
+            sh.value = '';
+            sh.classList.remove('f-auto');
+            hint.textContent = '';
+            updatePreview('pRect2', 0, 0);
+          }
+        } else if (lastEdited === 'h') {
+          const h = val('sH');
+          if (h > 0) {
+            const w = Math.round((h * rw) / rh);
+            sw.value = w;
+            sw.classList.add('f-auto');
+            hint.textContent = `${w} × ${h} px`;
+            updatePreview('pRect2', w, h);
+          } else {
+            sw.value = '';
+            sw.classList.remove('f-auto');
+            hint.textContent = '';
+            updatePreview('pRect2', 0, 0);
+          }
+        }
+      }
+
+      document.getElementById('dW').addEventListener('input', updateDetect);
+      document.getElementById('dH').addEventListener('input', updateDetect);
+      document.getElementById('rW').addEventListener('input', solveP2);
+      document.getElementById('rH').addEventListener('input', solveP2);
+
+      document.getElementById('sW').addEventListener('input', function () {
+        lastEdited = 'w';
+        this.classList.remove('f-auto');
+        document.getElementById('sH').classList.remove('f-auto');
+        solveP2();
+      });
+      document.getElementById('sH').addEventListener('input', function () {
+        lastEdited = 'h';
+        this.classList.remove('f-auto');
+        document.getElementById('sW').classList.remove('f-auto');
+        solveP2();
+      });
+
+      function clearAll() {
+        ['dW', 'dH', 'rW', 'rH', 'sW', 'sH'].forEach(
+          (id) => (document.getElementById(id).value = ''),
+        );
+        ['sW', 'sH'].forEach((id) =>
+          document.getElementById(id).classList.remove('f-auto'),
+        );
+        const rv = document.getElementById('rVal');
+        rv.textContent = '—';
+        rv.classList.add('empty');
+        document.getElementById('rSub').textContent = '';
+        document.getElementById('solveHint').textContent = '';
+        updatePreview('pRect1', 0, 0);
+        updatePreview('pRect2', 0, 0);
+        lastEdited = null;
+      }
+    </script>
+  </body>
+</html>
