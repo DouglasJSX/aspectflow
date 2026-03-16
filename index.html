@@ -343,8 +343,9 @@
       }
 
       /* ── Unified input style ── */
-      input[type='number'] {
+      input.numeric-input {
         width: 100%;
+        padding: 0px 12px;
         height: var(--input-h);
         background: var(--input-bg);
         border: none;
@@ -358,17 +359,17 @@
         transition: background var(--ease);
         -moz-appearance: textfield;
       }
-      input[type='number']::-webkit-outer-spin-button,
-      input[type='number']::-webkit-inner-spin-button {
+      input.numeric-input::-webkit-outer-spin-button,
+      input.numeric-input::-webkit-inner-spin-button {
         -webkit-appearance: none;
       }
-      input[type='number']::placeholder {
+      input.numeric-input::placeholder {
         color: rgb(255, 255, 255, 0.3);
       }
-      input[type='number']:hover {
+      input.numeric-input:hover {
         background: rgba(0, 0, 0, 0.6);
       }
-      input[type='number']:focus {
+      input.numeric-input:focus {
         background: rgba(0, 0, 0, 0.6);
         box-shadow: none;
       }
@@ -610,12 +611,12 @@
               <div class="input-row">
                 <div class="field">
                   <span>Width</span>
-                  <input id="dW" type="number" min="1" placeholder="1920" />
+                  <input id="dW" class="numeric-input" type="text" inputmode="decimal" placeholder="1920" />
                 </div>
                 <div class="sep">×</div>
                 <div class="field">
                   <span>Height</span>
-                  <input id="dH" type="number" min="1" placeholder="1080" />
+                  <input id="dH" class="numeric-input" type="text" inputmode="decimal" placeholder="1080" />
                 </div>
               </div>
 
@@ -649,23 +650,23 @@
                <div class="input-row">
                 <div class="field">
                   <span>Ratio Width</span>
-                  <input id="rW" type="number" min="1" placeholder="16" />
+                  <input id="rW" class="numeric-input" type="text" inputmode="decimal" placeholder="16" />
                 </div>
                 <div class="sep">:</div>
                 <div class="field">
                   <span>Ratio Height</span>
-                  <input id="rH" type="number" min="1" placeholder="9" />
+                  <input id="rH" class="numeric-input" type="text" inputmode="decimal" placeholder="9" />
                 </div>
               </div>
 
               <div class="input-row-2">
                 <div class="field">
-                  <input id="sW" type="number" min="1" placeholder="—" />
+                  <input id="sW" class="numeric-input" type="text" inputmode="decimal" placeholder="—" />
                   <span>Width</span>
                 </div>
                 <div class="sep">×</div>
                 <div class="field">
-                  <input id="sH" type="number" min="1" placeholder="—" />
+                  <input id="sH" class="numeric-input" type="text" inputmode="decimal" placeholder="—" />
                   <span>Height</span>
                 </div>
               </div>
@@ -841,68 +842,157 @@
       initBackgroundMouseDistortion();
 
       /* ── Helpers ── */
-      function gcd(a, b) {
-        a = Math.round(a);
-        b = Math.round(b);
-        return b === 0 ? a : gcd(b, a % b);
+      function gcdBigInt(a, b) {
+        let x = a;
+        let y = b;
+
+        while (y !== 0n) {
+          const remainder = x % y;
+          x = y;
+          y = remainder;
+        }
+
+        return x;
       }
 
-      // Finds the closest small integer ratio to the current w/h value.
-      function nearestIntegerRatio(w, h, maxSide = 64) {
-        const target = w / h;
-        let best = { w: w, h: h, error: Number.POSITIVE_INFINITY };
+      const MAX_DECIMALS = 10;
+      const MAX_INTEGER_DIGITS = 7;
 
-        for (let rh = 1; rh <= maxSide; rh++) {
-          const base = Math.round(target * rh);
-          for (let rw = base - 1; rw <= base + 1; rw++) {
-            if (rw < 1) continue;
-            const error = Math.abs(rw / rh - target);
-            if (error < best.error) {
-              best = { w: rw, h: rh, error: error };
+      function sanitizeNumericInput(value) {
+        const source = String(value || '');
+        const allowed = source.replace(/[^\d.,]/g, '');
+        let result = '';
+        let hasSeparator = false;
+        let fractionalDigits = 0;
+        let integerDigits = 0;
+
+        for (let i = 0; i < allowed.length; i++) {
+          const ch = allowed[i];
+          if (/\d/.test(ch)) {
+            if (!hasSeparator && integerDigits >= MAX_INTEGER_DIGITS) {
+              continue;
             }
+            if (hasSeparator && fractionalDigits >= MAX_DECIMALS) {
+              continue;
+            }
+            result += ch;
+            if (hasSeparator) {
+              fractionalDigits += 1;
+            } else {
+              integerDigits += 1;
+            }
+            continue;
+          }
+
+          if (!hasSeparator) {
+            result += ch === ',' ? ',' : '.';
+            hasSeparator = true;
           }
         }
 
-        return best;
+        return result;
       }
 
-      function detectDisplayRatio(w, h) {
-        const iw = Math.round(w);
-        const ih = Math.round(h);
-        const d = gcd(iw, ih);
-        const exactW = iw / d;
-        const exactH = ih / d;
+      function parseLocalizedNumber(rawValue) {
+        const cleaned = sanitizeNumericInput(rawValue);
+        if (!cleaned || cleaned === '.' || cleaned === ',') return 0;
+        const normalized = cleaned.replace(',', '.');
+        const parsed = parseFloat(normalized);
 
-        // If exact simplification already exists, use it directly.
-        if (d > 1) {
-          return {
-            label: `${exactW}:${exactH}`,
-            isApprox: false,
-            exactLabel: `${exactW}:${exactH}`,
-          };
+        return Number.isFinite(parsed) ? parsed : 0;
+      }
+
+      function parseDecimalToParts(rawValue) {
+        const cleaned = sanitizeNumericInput(rawValue);
+        if (!cleaned || cleaned === '.' || cleaned === ',') return null;
+
+        let normalized = cleaned.replace(',', '.');
+        if (normalized.startsWith('.')) {
+          normalized = '0' + normalized;
+        }
+        if (normalized.endsWith('.')) {
+          normalized = normalized.slice(0, -1);
         }
 
-        const nearest = nearestIntegerRatio(iw, ih);
-        const relError = Math.abs(nearest.w / nearest.h - iw / ih) / (iw / ih);
-        const snapThreshold = 0.003; // 0.3%
-
-        if (relError <= snapThreshold) {
-          return {
-            label: `${nearest.w}:${nearest.h}`,
-            isApprox: true,
-            exactLabel: `${exactW}:${exactH}`,
-          };
+        if (!/^\d+(\.\d+)?$/.test(normalized)) {
+          return null;
         }
+
+        const parts = normalized.split('.');
+        const integerPart = parts[0] || '0';
+        const fractionalPart = parts[1] || '';
+        const scale = 10n ** BigInt(fractionalPart.length);
+        const numerator = BigInt(integerPart + fractionalPart);
+
+        return { numerator, scale };
+      }
+
+      function calculateAspectRatio(widthRaw, heightRaw) {
+        const widthParts = parseDecimalToParts(widthRaw);
+        const heightParts = parseDecimalToParts(heightRaw);
+
+        if (!widthParts || !heightParts) return null;
+        if (widthParts.numerator <= 0n || heightParts.numerator <= 0n) return null;
+
+        const scaledWidth = widthParts.numerator * heightParts.scale;
+        const scaledHeight = heightParts.numerator * widthParts.scale;
+        const commonDivisor = gcdBigInt(scaledWidth, scaledHeight);
+        const ratioWidth = scaledWidth / commonDivisor;
+        const ratioHeight = scaledHeight / commonDivisor;
 
         return {
-          label: `${exactW}:${exactH}`,
-          isApprox: false,
-          exactLabel: `${exactW}:${exactH}`,
+          width: ratioWidth,
+          height: ratioHeight,
+          label: `${ratioWidth.toString()}:${ratioHeight.toString()}`,
         };
       }
 
+      function calculateDimensionsFromWidth(targetWidth, aspectW, aspectH) {
+        const ratio = aspectW / aspectH;
+        const resultingHeight = targetWidth / ratio;
+
+        return {
+          width: targetWidth,
+          height: resultingHeight,
+        };
+      }
+
+      function calculateDimensionsFromHeight(targetHeight, aspectW, aspectH) {
+        const ratio = aspectW / aspectH;
+        const resultingWidth = targetHeight * ratio;
+
+        return {
+          width: resultingWidth,
+          height: targetHeight,
+        };
+      }
+
+      function getOutputSeparator(ids) {
+        const hasComma = ids.some(function (id) {
+          return (document.getElementById(id).value || '').includes(',');
+        });
+        return hasComma ? ',' : '.';
+      }
+
+      function formatReal(value, separator, maxDecimals = MAX_DECIMALS) {
+        if (!Number.isFinite(value)) return '';
+        const pow = Math.pow(10, maxDecimals);
+        const rounded = Math.round((value + Number.EPSILON) * pow) / pow;
+        let text = rounded.toFixed(maxDecimals);
+        while (text.includes('.') && text.endsWith('0')) {
+          text = text.slice(0, -1);
+        }
+        if (text.endsWith('.')) {
+          text = text.slice(0, -1);
+        }
+        if (!text) {
+          text = '0';
+        }
+        return separator === ',' ? text.replace('.', ',') : text;
+      }
+
       function val(id) {
-        return parseFloat(document.getElementById(id).value) || 0;
+        return parseLocalizedNumber(document.getElementById(id).value);
       }
 
       function updatePreview(id, w, h) {
@@ -930,18 +1020,26 @@
 
       /* ── Panel 1 ── */
       function updateDetect() {
+        const wRaw = document.getElementById('dW').value;
+        const hRaw = document.getElementById('dH').value;
         const w = val('dW'),
           h = val('dH');
         const rv = document.getElementById('rVal');
         const rs = document.getElementById('rSub');
         const rb = document.getElementById('rBox');
         if (w > 0 && h > 0) {
-          const ratio = detectDisplayRatio(w, h);
+          const ratio = calculateAspectRatio(wRaw, hRaw);
+          const separator = getOutputSeparator(['dW', 'dH']);
+          if (!ratio) {
+            rv.textContent = '—';
+            rv.classList.add('empty');
+            rs.textContent = '';
+            updatePreview('pRect1', 0, 0);
+            return;
+          }
           rv.textContent = ratio.label;
           rv.classList.remove('empty');
-          rs.textContent = ratio.isApprox
-            ? `${(w / h).toFixed(4)} (approx. | exact ${ratio.exactLabel})`
-            : `${(w / h).toFixed(4)}`;
+          rs.textContent = formatReal(w / h, separator, MAX_DECIMALS);
           rb.classList.remove('shine');
           void rb.offsetWidth;
           rb.classList.add('shine');
@@ -971,13 +1069,14 @@
         if (lastEdited === 'w') {
           const w = val('sW');
           if (w > 0) {
-            const h = Math.round((w * rh) / rw);
-            sh.value = h;
+            const separator = getOutputSeparator(['rW', 'rH', 'sW', 'sH']);
+            const result = calculateDimensionsFromWidth(w, rw, rh);
+            sh.value = formatReal(result.height, separator, MAX_DECIMALS);
             sh.classList.add('f-auto');
             sh.readOnly = true;
             sw.readOnly = false;
-            hint.textContent = `${w} × ${h} px`;
-            updatePreview('pRect2', w, h);
+            hint.textContent = `${formatReal(result.width, separator, MAX_DECIMALS)} × ${formatReal(result.height, separator, MAX_DECIMALS)} px`;
+            updatePreview('pRect2', result.width, result.height);
           } else {
             sh.value = '';
             sh.classList.remove('f-auto');
@@ -988,13 +1087,14 @@
         } else if (lastEdited === 'h') {
           const h = val('sH');
           if (h > 0) {
-            const w = Math.round((h * rw) / rh);
-            sw.value = w;
+            const separator = getOutputSeparator(['rW', 'rH', 'sW', 'sH']);
+            const result = calculateDimensionsFromHeight(h, rw, rh);
+            sw.value = formatReal(result.width, separator, MAX_DECIMALS);
             sw.classList.add('f-auto');
             sw.readOnly = true;
             sh.readOnly = false;
-            hint.textContent = `${w} × ${h} px`;
-            updatePreview('pRect2', w, h);
+            hint.textContent = `${formatReal(result.width, separator, MAX_DECIMALS)} × ${formatReal(result.height, separator, MAX_DECIMALS)} px`;
+            updatePreview('pRect2', result.width, result.height);
           } else {
             sw.value = '';
             sw.classList.remove('f-auto');
@@ -1009,7 +1109,7 @@
       }
 
       function initDigitsOnlyInputs() {
-        const numberInputs = document.querySelectorAll("input[type='number']");
+        const numberInputs = document.querySelectorAll('.numeric-input');
         const allowedKeys = new Set([
           'Backspace',
           'Delete',
@@ -1027,31 +1127,32 @@
             if (e.ctrlKey || e.metaKey || e.altKey) return;
             if (allowedKeys.has(e.key)) return;
             if (/^[0-9]$/.test(e.key)) return;
+            if (e.key === '.' || e.key === ',') return;
             e.preventDefault();
           });
 
           input.addEventListener('input', function () {
-            const onlyDigits = this.value.replace(/\D+/g, '');
-            if (this.value !== onlyDigits) {
-              this.value = onlyDigits;
+            const normalized = sanitizeNumericInput(this.value);
+            if (this.value !== normalized) {
+              this.value = normalized;
             }
           });
 
           input.addEventListener('paste', function (e) {
             e.preventDefault();
             const text = (e.clipboardData || window.clipboardData).getData('text');
-            const onlyDigits = text.replace(/\D+/g, '');
-            if (!onlyDigits) return;
+            const normalized = sanitizeNumericInput(text);
+            if (!normalized) return;
 
             if (typeof this.setRangeText === 'function') {
               this.setRangeText(
-                onlyDigits,
+                normalized,
                 this.selectionStart || 0,
                 this.selectionEnd || 0,
                 'end',
               );
             } else {
-              this.value = onlyDigits;
+              this.value = normalized;
             }
 
             this.dispatchEvent(new Event('input', { bubbles: true }));
